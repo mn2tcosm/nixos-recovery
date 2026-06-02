@@ -14,6 +14,7 @@
 - `borg-passphrase.txt` — borgbase **데이터 복호** 암호 (repokey-blake2)
 - `ghost_ed25519` (+.pub) — incus ghost 컨테이너 용
 - `config` — ssh 매핑(github→git키, *.repo.borgbase.com→borg키)
+- `known_hosts` — github·borgbase 서버 신분증(미리 넣어둬서 ssh-keyscan 불필요)
 - `vorta_profile.json` — borgbase repo 주소 등
 
 > borg는 접속 키(ssh) + 데이터 암호(passphrase) **둘 다** 필요 — 성격이 다른 별개의 비밀.
@@ -37,8 +38,12 @@ gpg -d keys.tar.gpg | tar -xz
 4. 키 배치 (root):
    ```sh
    mkdir -p /root/.ssh
-   cp git_ed25519 borg_ed25519 ghost_ed25519 config /root/.ssh/
+   cp git_ed25519 borg_ed25519 ghost_ed25519 config known_hosts /root/.ssh/
+   chmod 700 /root/.ssh
    chmod 600 /root/.ssh/*
+   # known_hosts 를 같이 넣어 ssh-keyscan 불필요.
+   # 단, 혹시 "REMOTE HOST IDENTIFICATION HAS CHANGED" 뜨면(서버 키 교체 등):
+   #   ssh-keygen -R github.com -f /root/.ssh/known_hosts && ssh-keyscan github.com >> /root/.ssh/known_hosts
    ```
 5. **시스템 설치 먼저** (git+ssh 로 private flake 직접 설치, `/dev/nvme0n1`=새 디스크):
    ```sh

@@ -14,7 +14,7 @@ STG="$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/recovery.XXXXXX")"
 trap 'rm -rf "$STG"' EXIT
 
 # git키=설치용, borg키=borgbase 접속 열쇠(백업 안에서 못 꺼냄=순환), ghost키, config=ssh 매핑.
-cp "$SSH"/{git_ed25519,git_ed25519.pub,borg_ed25519,borg_ed25519.pub,ghost_ed25519,ghost_ed25519.pub,config} "$STG"/
+cp "$SSH"/{git_ed25519,git_ed25519.pub,borg_ed25519,borg_ed25519.pub,ghost_ed25519,ghost_ed25519.pub,config,known_hosts} "$STG"/
 cp "$PROFILE" "$STG"/
 
 # borgbase 데이터 복호용 passphrase 를 번들에 포함 → 평소엔 gpg 암호 하나만 기억하면 됨.
