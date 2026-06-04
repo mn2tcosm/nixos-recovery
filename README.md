@@ -3,12 +3,17 @@
 최악의 상황(삼성·인텔 NVMe 동시 사망, 새 디스크 1개, 주변에 도와줄 컴퓨터 없음)에서
 내 NixOS 환경을 맨바닥부터 되살리기 위한 **부트스트랩 키트**.
 
-- `keys.tar.gpg` — ssh 개인키 + vorta 프로필을 **AES256으로 암호화**한 묶음.
+- `bootstrap.sh` — **도움즈데이 진입점.** ISO에서 이거 한 줄 받아 실행하면
+  키 복호·설치 → private `nixos-config` clone → `setup.sh` 메뉴까지 **자동**.
+- `keys.tar.gpg` — ssh 개인키 + borg 암호 + vorta 프로필을 **AES256으로 암호화**한 묶음.
   GitHub 비밀스캔은 평문만 잡으므로 암호화된 이 blob 은 공개 repo에 둬도 안전.
   **단, 암호(passphrase)를 분실하면 영구히 못 엽니다.**
 - `make-bundle.sh` — 이 번들을 만든/다시 만드는 스크립트(비밀 없음).
 
-## 들어있는 것
+> 실제 설치/복구 작업 메뉴인 **`setup.sh`** 는 이 repo가 아니라 private `nixos-config`에 있다.
+> bootstrap.sh 가 그걸 clone 해서 실행한다.
+
+## 들어있는 것 (keys.tar.gpg)
 - `git_ed25519` (+.pub) — private repo `nixos-config` clone 용 (설치 단계)
 - `borg_ed25519` (+.pub) — borgbase **서버 접속** 열쇠 (백업 안에서 못 꺼냄=순환이라 바깥에 보관)
 - `borg-passphrase.txt` — borgbase **데이터 복호** 암호 (repokey-blake2)
@@ -25,38 +30,51 @@
 gpg -d keys.tar.gpg | tar -xz
 ```
 
-## 최악 시나리오 부트스트랩 (NixOS minimal ISO — gpg 없음)
-1. minimal ISO 부팅 → 네트워크 연결 → `sudo -i` (root 로)
-2. 번들 내려받기:
-   ```sh
-   curl -LO https://raw.githubusercontent.com/mn2tcosm/nixos-recovery/main/keys.tar.gpg
-   ```
-3. 일회용 gpg 로 복호 (ISO엔 gpg 미설치):
-   ```sh
-   nix run nixpkgs#gnupg -- -d keys.tar.gpg | tar -xz
-   ```
-4. 키 배치 (root):
-   ```sh
-   mkdir -p /root/.ssh
-   cp git_ed25519 borg_ed25519 ghost_ed25519 config known_hosts /root/.ssh/
-   chmod 700 /root/.ssh
-   chmod 600 /root/.ssh/*
-   # known_hosts 를 같이 넣어 ssh-keyscan 불필요.
-   # 단, 혹시 "REMOTE HOST IDENTIFICATION HAS CHANGED" 뜨면(서버 키 교체 등):
-   #   ssh-keygen -R github.com -f /root/.ssh/known_hosts && ssh-keyscan github.com >> /root/.ssh/known_hosts
-   ```
-5. **시스템 설치 먼저** (git+ssh 로 private flake 직접 설치, `/dev/nvme0n1`=새 디스크):
-   ```sh
-   disko-install --flake git+ssh://git@github.com/mn2tcosm/nixos-config#nixos --disk main /dev/nvme0n1
-   ```
-6. 재부팅 → 새 시스템 로그인(root 임시암호 설정 → TTY 에서 `passwd mn2tcosm`)
-7. **그 다음 데이터 복원** (borgbase → `/mnt/mn2/state`). 단일 디스크라
-   `/mnt/mn2` 는 별도 디스크가 아니라 root 위의 폴더가 됨(거기로 복원):
-   ```sh
-   export BORG_RSH='ssh -i /root/.ssh/borg_ed25519'
-   borg extract 'ssh://tm75386d@tm75386d.repo.borgbase.com/./repo::<아카이브이름>'
-   ```
-   (borg passphrase 는 위에서 푼 `borg-passphrase.txt` 값 사용 — 프롬프트에 입력)
+## 최악 시나리오 부트스트랩 (NixOS minimal ISO)
+**기억할 명령은 단 두 줄.** 나머지(키 복호·설치·메뉴)는 `bootstrap.sh` 가 알아서 한다.
 
-> 순서가 중요: **설치(껍데기) → 복원(데이터)**. 거꾸로 하면 disko 가 데이터를 밀어버림.
+1. minimal ISO 부팅 → 네트워크 연결 → `sudo -i` (root 로)
+2. 두 줄 실행:
+   ```sh
+   curl -fLO https://raw.githubusercontent.com/mn2tcosm/nixos-recovery/main/bootstrap.sh
+   bash bootstrap.sh
+   ```
+3. 진행 중 **gpg 암호**를 한 번 물어본다(번들 복호). 그게 기억할 유일한 비밀.
+4. 자동으로 `setup.sh` 툴박스 메뉴가 뜬다. 거기서:
+   - 디스크 선택 (`d`)
+   - **새 디스크 / 도움즈데이** → `7) FRESH` (파티션→포맷→마운트→clone→설치)
+   - **p3 살리는 재설치** → `8) KEEP-P3` (root 만 포맷, p3 데이터 보존)
+5. 설치 끝 → 재부팅 → root 임시암호 로그인 → TTY 에서 `passwd mn2tcosm`
+6. **데이터 복원** (fresh 인 경우) → vorta/borg 로 borgbase → `/mnt/mn2`
+
+### bootstrap.sh 가 자동으로 하는 일 (내부)
+1. 도구(git/gnupg/gptfdisk/dosfstools/e2fsprogs/parted)를 `nix shell` 로 채우고 자기 재실행
+2. `keys.tar.gpg` 내려받아 gpg 복호 → ssh 키를 `/root/.ssh` 에 설치(600)
+3. private `nixos-config` 를 RAM(`/root`)에 `git clone`
+4. `setup.sh` 툴박스 메뉴 실행
+
+### bootstrap.sh 가 안 되면 (수동 폴백)
+위 4단계를 손으로:
+```sh
+cd /root
+curl -LO https://raw.githubusercontent.com/mn2tcosm/nixos-recovery/main/keys.tar.gpg
+nix run nixpkgs#gnupg -- -d keys.tar.gpg | tar -xz      # ISO엔 gpg 없음
+mkdir -p /root/.ssh
+cp git_ed25519 borg_ed25519 ghost_ed25519 config known_hosts /root/.ssh/
+chmod 700 /root/.ssh; chmod 600 /root/.ssh/*
+git clone git@github.com:mn2tcosm/nixos-config /root/nixos-config
+bash /root/nixos-config/setup.sh
+```
+> "REMOTE HOST IDENTIFICATION HAS CHANGED" 뜨면(서버 키 교체 등):
+> `ssh-keygen -R github.com -f /root/.ssh/known_hosts && ssh-keyscan github.com >> /root/.ssh/known_hosts`
+
+## 데이터 복원 (borgbase, 설치 후)
+fresh 설치라 state 가 비어있으면 borgbase 에서 복원(보통은 vorta GUI 로):
+```sh
+export BORG_RSH='ssh -i /root/.ssh/borg_ed25519'
+borg extract 'ssh://tm75386d@tm75386d.repo.borgbase.com/./repo::<아카이브이름>'
+```
+(borg passphrase = 번들에서 푼 `borg-passphrase.txt` 값 — 프롬프트에 입력)
+
+> 순서가 중요: **설치(껍데기) → 복원(데이터)**. 거꾸로 하면 포맷이 데이터를 밀어버림.
 > 상세 절차는 private 의 `복구시나리오.md` 참고.
