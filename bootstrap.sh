@@ -26,13 +26,29 @@ if ! command -v git >/dev/null || ! command -v gpg >/dev/null || ! command -v sg
        --command bash "$0" "$@"
 fi
 
-RAW="https://raw.githubusercontent.com/mn2tcosm/nixos-recovery/main"
-REPO_SSH="git@github.com:mn2tcosm/nixos-config"
+# 미러: GitHub 우선, 죽으면 Codeberg → GitLab 로 폴백(단일 회사 의존 차단).
+#   nixos-recovery(공개) = keys.tar.gpg 를 raw(https) 로 받음.
+#   nixos-config(비공개) = ssh 로 clone (같은 git_ed25519 가 3곳 다 등록돼 있음).
+RAW_BASES=(
+  "https://raw.githubusercontent.com/mn2tcosm/nixos-recovery/main"
+  "https://codeberg.org/mn2tcosm/nixos-recovery/raw/branch/main"
+  "https://gitlab.com/mn2tcosm/nixos-recovery/-/raw/main"
+)
+REPO_SSHS=(
+  "git@github.com:mn2tcosm/nixos-config"
+  "git@codeberg.org:mn2tcosm/nixos-config"
+  "git@gitlab.com:mn2tcosm/nixos-config"
+)
 
 echo "=== recovery bootstrap ==="
 cd /root
-echo "1) fetching key bundle..."
-curl -fLO "$RAW/keys.tar.gpg"
+echo "1) fetching key bundle (mirror fallback)..."
+ok=
+for b in "${RAW_BASES[@]}"; do
+  echo "   try: $b"
+  if curl -fLO "$b/keys.tar.gpg"; then ok=1; echo "   ok"; break; fi
+done
+[ -n "$ok" ] || { echo "ERROR: keys.tar.gpg fetch failed on ALL mirrors"; exit 1; }
 
 echo "2) decrypt (enter gpg passphrase at the prompt):"
 # 헤드리스 ISO 엔 pinentry 창이 없음 -> loopback 으로 터미널에서 직접 입력
@@ -47,9 +63,17 @@ cp git_ed25519 borg_ed25519 ghost_ed25519 config known_hosts /root/.ssh/
 chmod 700 /root/.ssh; chmod 600 /root/.ssh/*
 echo "   keys installed -> /root/.ssh"
 
-echo "3) cloning nixos-config to RAM..."
+echo "3) cloning nixos-config to RAM (mirror fallback)..."
 rm -rf /root/nixos-config
-git clone "$REPO_SSH" /root/nixos-config
+# 3곳 모두 같은 git_ed25519 등록됨 → 키 명시 + 호스트키 자동수락으로 어느 미러든 clone.
+export GIT_SSH_COMMAND="ssh -i /root/.ssh/git_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+ok=
+for u in "${REPO_SSHS[@]}"; do
+  echo "   try: $u"
+  if git clone "$u" /root/nixos-config; then ok=1; break; fi
+  rm -rf /root/nixos-config
+done
+[ -n "$ok" ] || { echo "ERROR: nixos-config clone failed on ALL mirrors"; exit 1; }
 
 echo "4) launching toolbox menu (pick disk + action there)..."
 exec bash /root/nixos-config/setup.sh
