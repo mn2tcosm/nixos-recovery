@@ -31,13 +31,25 @@ gpg -d keys.tar.gpg | tar -xz
 ```
 
 ## 최악 시나리오 부트스트랩 (NixOS minimal ISO)
-**기억할 명령은 단 두 줄.** 나머지(키 복호·설치·메뉴)는 `bootstrap.sh` 가 알아서 한다.
+**핵심: bootstrap.sh 받아 실행.** 나머지(키 복호·설치·메뉴)는 `bootstrap.sh` 가 알아서 한다.
+GitHub·Codeberg·GitLab **3사 미러** → 받는 단계까지 한 회사에 안 묶임.
 
 1. minimal ISO 부팅 → 네트워크 연결 → `sudo -i` (root 로)
-2. 두 줄 실행:
+2. 진입 — 둘 중 하나:
+
+   **[A] 복붙 한 방 (3곳 자동 시도: github→codeberg→gitlab):**
+   ```sh
+   for b in \
+     https://raw.githubusercontent.com/mn2tcosm/nixos-recovery/main \
+     https://codeberg.org/mn2tcosm/nixos-recovery/raw/branch/main \
+     https://gitlab.com/mn2tcosm/nixos-recovery/-/raw/main ; do \
+     curl -fLO "$b/bootstrap.sh" && break; done && bash bootstrap.sh
+   ```
+   **[B] 손으로 — github 막혔으면 아래 중 한 줄만 받고 `bash bootstrap.sh`:**
    ```sh
    curl -fLO https://raw.githubusercontent.com/mn2tcosm/nixos-recovery/main/bootstrap.sh
-   bash bootstrap.sh
+   curl -fLO https://codeberg.org/mn2tcosm/nixos-recovery/raw/branch/main/bootstrap.sh
+   curl -fLO https://gitlab.com/mn2tcosm/nixos-recovery/-/raw/main/bootstrap.sh
    ```
 3. 진행 중 **gpg 암호**를 한 번 물어본다(번들 복호). 그게 기억할 유일한 비밀.
 4. 자동으로 `setup.sh` 툴박스 메뉴가 뜬다. 거기서:
@@ -54,7 +66,7 @@ gpg -d keys.tar.gpg | tar -xz
 4. `setup.sh` 툴박스 메뉴 실행
 
 ### bootstrap.sh 가 안 되면 (수동 폴백)
-위 4단계를 손으로:
+위 4단계를 손으로 (github 막혔으면 raw URL 베이스를 위 [A]의 codeberg/gitlab 로 교체):
 ```sh
 cd /root
 curl -LO https://raw.githubusercontent.com/mn2tcosm/nixos-recovery/main/keys.tar.gpg

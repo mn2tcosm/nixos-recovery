@@ -2,10 +2,19 @@
 # bootstrap.sh — doomsday entry point (public nixos-recovery)
 #   화면 출력 = ASCII 영어 (ISO TTY 호환). 주석(#) = 한글.
 #
-# minimal ISO 에서:
-#   sudo -i
-#   curl -fLO https://raw.githubusercontent.com/mn2tcosm/nixos-recovery/main/bootstrap.sh
-#   bash bootstrap.sh
+# minimal ISO 에서 (sudo -i 후) — bootstrap.sh 받기까지 github 독립(미러 3사):
+#
+#  [A] 복붙 한 방 — 3곳 자동 시도(github -> codeberg -> gitlab):
+#    for b in \
+#      https://raw.githubusercontent.com/mn2tcosm/nixos-recovery/main \
+#      https://codeberg.org/mn2tcosm/nixos-recovery/raw/branch/main \
+#      https://gitlab.com/mn2tcosm/nixos-recovery/-/raw/main ; do \
+#      curl -fLO "$b/bootstrap.sh" && break; done && bash bootstrap.sh
+#
+#  [B] 수동 — github 막혔으면 아래 중 한 줄만 받고 -> bash bootstrap.sh:
+#      https://raw.githubusercontent.com/mn2tcosm/nixos-recovery/main/bootstrap.sh
+#      https://codeberg.org/mn2tcosm/nixos-recovery/raw/branch/main/bootstrap.sh
+#      https://gitlab.com/mn2tcosm/nixos-recovery/-/raw/main/bootstrap.sh
 #
 # 하는 일:
 #   - (minimal ISO 대비) nix 실험기능 켜고, 필요한 도구를 nix shell 로 채워 자기 재실행
