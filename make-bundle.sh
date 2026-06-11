@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# 복구 번들 생성기 — ssh 개인키 + vorta 프로필을 AES256으로 암호화해서 keys.tar.gpg 생성.
+# 복구 번들 생성기 — ssh 개인키 + borg암호 + wg설정을 AES256으로 암호화해서 keys.tar.gpg 생성.
+#   (백업은 borgbackup CLI=ai-borg 가 담당. 옛 vorta 프로필 참조는 제거됨 2026-06.)
 #
 #   - 평문 묶음은 tmpfs(RAM, /run/user/1000)에서만 만들고 끝나면 즉시 삭제 → 디스크에 평문 안 남음.
 #   - 암호(passphrase)는 실행할 때 직접 입력. 절대 파일/스크립트에 평문으로 박지 말 것.
@@ -7,7 +8,6 @@
 set -euo pipefail
 
 SSH=/mnt/mn2/state/users/mn2tcosm/auth/ssh
-PROFILE=/mnt/mn2/debian-archive/vorta_profile.json
 OUT="$(dirname "$(realpath "$0")")/keys.tar.gpg"
 
 STG="$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/recovery.XXXXXX")"
@@ -15,7 +15,11 @@ trap 'rm -rf "$STG"' EXIT
 
 # git키=설치용, borg키=borgbase 접속 열쇠(백업 안에서 못 꺼냄=순환), ghost키, config=ssh 매핑.
 cp "$SSH"/{git_ed25519,git_ed25519.pub,borg_ed25519,borg_ed25519.pub,ghost_ed25519,ghost_ed25519.pub,config,known_hosts} "$STG"/
-cp "$PROFILE" "$STG"/
+
+# ghost wg 설정(VPN 비밀) — borg 는 auth 제외(순환방지)라 백업 누락 → 여기 번들로 챙김.
+#   복구 시 bootstrap 의 tar -xz 가 /root 에 wg/ghost.conf 로 풀어줌 → auth/wg/ 로 옮기면 됨.
+mkdir -p "$STG/wg"
+cp /mnt/mn2/state/users/mn2tcosm/auth/wg/ghost.conf "$STG/wg/ghost.conf"
 
 # borgbase 데이터 복호용 passphrase 를 번들에 포함 → 평소엔 gpg 암호 하나만 기억하면 됨.
 # (borgbase 는 repokey-blake2 라 'borg 키 + 이 암호' 둘 다 있어야 백업 복호 가능)
@@ -25,6 +29,15 @@ read -rs BORG_PASS; echo
 unset BORG_PASS
 
 echo "묶을 내용:"; ls -1 "$STG"
-echo "암호를 입력하세요(두 번). 분실하면 이 번들은 영구히 못 엽니다 ↓"
-tar -czf - -C "$STG" . | gpg --symmetric --cipher-algo AES256 -o "$OUT"
+
+# gpg 암호: bash 가 가려서(-s) 입력받아 fd 로 전달 → 터미널 에코 X, ps/디스크 노출 X.
+#   (pinentry 가 세션마다 안 잡혀 평문 에코되던 문제 차단. 분실하면 번들 영구히 못 엽니다.)
+printf 'gpg 암호 입력(화면에 안 보임): '; read -rs GPG_PASS; echo
+printf 'gpg 암호 재입력(확인): ';          read -rs GPG_PASS2; echo
+[ -n "$GPG_PASS" ] || { echo "빈 암호 거부"; exit 1; }
+[ "$GPG_PASS" = "$GPG_PASS2" ] || { echo "두 입력이 다름 — 중단(번들 안 만듦)"; exit 1; }
+
+tar -czf - -C "$STG" . | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 3 \
+    --symmetric --cipher-algo AES256 -o "$OUT" 3<<<"$GPG_PASS"
+unset GPG_PASS GPG_PASS2
 echo "생성됨: $OUT"
