@@ -68,7 +68,7 @@ gpgconf --kill gpg-agent 2>/dev/null || true
 gpg --pinentry-mode loopback -d keys.tar.gpg | tar -xz
 
 mkdir -p /root/.ssh
-cp git_ed25519 borg_ed25519 ghost_ed25519 config known_hosts /root/.ssh/
+cp git_ed25519 borg_ed25519 config known_hosts /root/.ssh/
 chmod 700 /root/.ssh; chmod 600 /root/.ssh/*
 echo "   keys installed -> /root/.ssh"
 

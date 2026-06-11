@@ -17,10 +17,9 @@
 - `git_ed25519` (+.pub) — private repo `nixos-config` clone 용 (설치 단계)
 - `borg_ed25519` (+.pub) — borgbase **서버 접속** 열쇠 (백업 안에서 못 꺼냄=순환이라 바깥에 보관)
 - `borg-passphrase.txt` — borgbase **데이터 복호** 암호 (repokey-blake2)
-- `ghost_ed25519` (+.pub) — incus ghost 컨테이너 용
 - `config` — ssh 매핑(github→git키, *.repo.borgbase.com→borg키)
 - `known_hosts` — github·borgbase 서버 신분증(미리 넣어둬서 ssh-keyscan 불필요)
-- `vorta_profile.json` — borgbase repo 주소 등
+- `wg/ghost.conf` — ghost VPN(WireGuard) 설정 (borg는 auth 제외라 여기 보관)
 
 > borg는 접속 키(ssh) + 데이터 암호(passphrase) **둘 다** 필요 — 성격이 다른 별개의 비밀.
 > 둘 다 번들에 넣었으니, 기억할 건 이 번들을 여는 **gpg 암호 하나뿐**.
@@ -72,7 +71,7 @@ cd /root
 curl -LO https://raw.githubusercontent.com/mn2tcosm/nixos-recovery/main/keys.tar.gpg
 nix run nixpkgs#gnupg -- -d keys.tar.gpg | tar -xz      # ISO엔 gpg 없음
 mkdir -p /root/.ssh
-cp git_ed25519 borg_ed25519 ghost_ed25519 config known_hosts /root/.ssh/
+cp git_ed25519 borg_ed25519 config known_hosts /root/.ssh/
 chmod 700 /root/.ssh; chmod 600 /root/.ssh/*
 git clone git@github.com:mn2tcosm/nixos-config /root/nixos-config
 bash /root/nixos-config/setup.sh

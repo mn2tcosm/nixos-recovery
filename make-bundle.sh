@@ -13,8 +13,8 @@ OUT="$(dirname "$(realpath "$0")")/keys.tar.gpg"
 STG="$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/recovery.XXXXXX")"
 trap 'rm -rf "$STG"' EXIT
 
-# git키=설치용, borg키=borgbase 접속 열쇠(백업 안에서 못 꺼냄=순환), ghost키, config=ssh 매핑.
-cp "$SSH"/{git_ed25519,git_ed25519.pub,borg_ed25519,borg_ed25519.pub,ghost_ed25519,ghost_ed25519.pub,config,known_hosts} "$STG"/
+# git키=설치용, borg키=borgbase 접속 열쇠(백업 안에서 못 꺼냄=순환), config=ssh 매핑.
+cp "$SSH"/{git_ed25519,git_ed25519.pub,borg_ed25519,borg_ed25519.pub,config,known_hosts} "$STG"/
 
 # ghost wg 설정(VPN 비밀) — borg 는 auth 제외(순환방지)라 백업 누락 → 여기 번들로 챙김.
 #   복구 시 bootstrap 의 tar -xz 가 /root 에 wg/ghost.conf 로 풀어줌 → auth/wg/ 로 옮기면 됨.
